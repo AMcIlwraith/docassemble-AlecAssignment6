@@ -1,0 +1,203 @@
+---
+modules:
+ - docassemble.base.core
+ - docassemble.base.util
+---
+objects:
+  - user: Individual
+  - recipient: Individual
+  - other: DAList.using(object_type=Individual, ask_number=True)
+---
+default role: client
+code: |
+  multi_user = True
+  role = 'client'
+  if understand and legal_aid and email_sent_ok:
+     if user_logged_in():
+      if user_info().email == recipient.email:
+        role = 'lawyer'
+---
+event: role_event
+question: |
+  Waiting
+subquestion: |
+  % if 'lawyer' in role_needed:
+  We are waiting for the lawyer to review your file.
+  % endif
+  
+  % if not user_logged_in():
+  If you were invited to review a document, please click "Sign in."
+  % endif
+
+  Press **Check** to check on the status.
+buttons:
+  - Check: refresh
+---
+mandatory: True
+code: |
+  user.name.first
+  legal_matter
+  had_lawyer
+  if had_lawyer == True:
+    not_acting
+  afford_lawyer
+  law_in_ab
+  in_ab
+  if role == 'lawyer':
+    lawyer_check
+  release_doc  
+---
+code: |
+  if user.name.first and understand:
+    recipient.email = 'amcilwra@ualberta.ca'
+---
+mandatory: True
+question: |
+ Welcome to Generic Legal Aid Service. Today's date is ${ today() }.
+subquestion: |
+ What is your name?
+fields: 
+ - First Name: user.name.first
+ - Last Name: user.name.last
+---
+question: |
+  Hello, ${ user }.
+subquestion: |
+  What kind of legal issue will you need help with today?
+field: legal_matter
+buttons:
+  - Criminal Law: criminal
+  - Family Law: family
+  - Neither Criminal nor Family Law: other
+---
+question: "We need to know if you currently have legal representation."
+subquestion: |
+  Have you had a lawyer in the past?
+yesno: had_lawyer
+---
+question: "We need to know if you currently have legal representation."
+subquestion: |
+  Are you currently represented by a lawyer?
+noyes: not_acting
+---
+question: "Legal Aid Alberta has a financial eligibility requirement."
+subquestion: |
+  Can you currently afford a lawyer?
+noyes: afford_lawyer
+---
+question: "Legal Aid Alberta also has requirements related to jurisdiction."
+subquestion: |
+  Do you live in Alberta?
+yesno: in_ab
+---
+question: "Legal Aid Alberta also has requirements related to jurisdiction."
+subquestion: |
+  Did the matter for which you require legal aid occur in Alberta?
+yesno: law_in_ab
+---
+code: |
+  if in_ab == True:
+    if law_in_ab == True:
+      juris = True
+    else:
+      juris = False
+  else:
+    juris = False
+---
+code: |
+  if legal_matter == "criminal":
+    eligible = True
+  elif legal_matter == "family":
+    eligible = True
+  else:
+    eligible = False
+---
+code: |
+  if had_lawyer == True:
+    if not_acting == True:
+      if afford_lawyer == True:
+        unrep = True
+      else:
+        unrep = False
+    else:
+      unrep = False
+  else:
+    if not_acting == True:
+      if afford_lawyer == True:
+        unrep = True
+      else:
+        unrep = False
+    else:
+      unrep = False
+---
+code: |
+  if unrep == True:
+    if juris == True: 
+      if eligible == True:
+        legal_aid = True
+      else:
+        legal_aid = False
+    else:
+      legal_aid = False  
+  else:
+    legal_aid = False
+---
+question: |
+  Legal Aid eligibility:
+subquestion: |
+  ${ user.name.first }, our system has completed its calculations. 
+  % if legal_aid == True:
+  We have tentatively determined that you are eligible for legal aid.
+  % elif legal_aid == False:
+  We have tentatively determined that you are not eligible for legal aid.
+  % endif
+  This determination is subject to review by our supervising lawyer, and has been sent to them. 
+  Please wait a few minutes while they review a memo that we have prepared for you.
+  Do you understand this step?
+yesno: understand
+---
+code:  |
+ email_sent_ok = send_email(to=[recipient], template=please_review)
+---
+template: please_review
+subject:  |
+ LAW599 Assignment 6
+content:  |
+ Dear Jason:
+ 
+ As supervising lawyer for Legal Aid, a **memorandum re legal aid eligibility** requires your approval.
+ It was generated automatically by our system.
+ 
+ You can approve it at the following URL:
+ [${ interview_url() }]($ interview_url() })
+ 
+ Thank you for your help.
+---
+role: lawyer
+question: |
+  The attached memorandum re: legal aid services requires approval.
+subquestion: |
+  Is this memo OK to release to the client?
+yesno: lawyer_check
+attachment:
+  name: Legal Aid Memo
+  filename: legal_aid_memo
+  docx template file: Template_6.docx
+  valid formats:
+    - pdf
+    - docx
+---
+field: release_doc
+question: |
+  % if lawyer_check:
+  This memo has been approved by our supervising lawyer and is ready to go.
+  % endif
+attachment:
+  name: Legal Aid Memo
+  filename: legal_aid_memo
+  docx template file: Template_6.docx
+  valid formats:
+    - pdf
+    - docx
+exit: exit
+---
